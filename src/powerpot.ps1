@@ -1,3 +1,30 @@
+<#
+.SYNOPSIS
+    Fake honeypot written in pure Powershell
+.DESCRIPTION
+    Create a honeypot that simulates the processes of the most famous debuggers.
+    In addition, it opens and monitors the most commonly attacked ports.
+.PARAMETER  Start
+    Start all the jobs. It cannot be used in front of the Stop parameter
+.PARAMETER  Stop
+    Stop all the jobs
+.EXAMPLE
+    .\powerpot.ps1 -Start
+    Start the program
+.EXAMPLE
+    .\powerpot.ps1 -Start -Verbose
+    Start the program in verbose mode
+.EXAMPLE
+    .\powerpot.ps1 -Stop -Verbose
+    Stop the program in verbose mode
+.LINK
+    Github: https://github.com/CosasDePuma/PowerPot
+.NOTES
+    Authors: Kike Fontan (@CosasDePuma) <kikefontanlorenzo@gmail.com>
+    References: 
+        https://github.com/Pwdrkeg/honeyport
+        https://github.com/kinomakino/ps_socket_firewall
+#>
 
 Param(
     [CmdletBinding()]
