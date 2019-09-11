@@ -13,7 +13,26 @@ Param(
     $Stop
 )
 
-function Set-Configuration
+Function Set-Configuration
+{
+    # System32 location
+    $global:system32 = [Environment]::SystemDirectory
+}
+
+Function New-TempFolder
+{
+    # Temp folder
+    $newGuid = [System.Guid]::NewGuid().toString()
+    $global:tempFolder = Join-Path $env:temp -ChildPath $newGuid
+    New-Item -Type Directory -Path $global:tempFolder | out-null
+    Write-Verbose -Message "[+] Temp folder created at $global:tempFolder"
+}
+
+<# -----------
+    PROCESSES
+   ----------- #>
+
+Function Set-ProcessConfiguration
 {
     # Sandbox processes
     $global:sandboxProcesses = @(
@@ -30,22 +49,13 @@ function Set-Configuration
         'wireshark'
     ) | ForEach-Object { "$_.exe" }
 
-    # Current working directory
-    $global:cwd = $pwd
-
     # Ping location
-    $system32 = [Environment]::SystemDirectory
-    $global:pingLocation = Join-Path $system32 "ping.exe"
-
-    # Temp folder
-    $newGuid = [System.Guid]::NewGuid().toString()
-    $global:tempFolder = Join-Path $env:temp $newGuid
+    $global:pingLocation = Join-Path $global:system32 "ping.exe"
 }
 
-function Start-Processes
+Function Start-Processes
 {
-    # Create temp folder
-    New-Item -Type Directory -Path $global:tempFolder | out-null
+    Write-Host -ForegroundColor Green "[+] Starting processes"
 
     ForEach ($process In $global:sandboxProcesses)
     {
@@ -54,31 +64,94 @@ function Start-Processes
         Copy-Item $global:pingLocation $binaryLocation
 
         # Start the process pinging one time per hour
-        Start-Process $binaryLocation -WindowStyle Hidden -ArgumentList "-t -w 3600000 -4 1.1.1.1"
-        Write-Host -ForegroundColor Green "[+] Spawned $process"
+        Write-Verbose "[*] Spawning $process"
+        Start-Process $binaryLocation -WindowStyle Hidden -ArgumentList "-t -w 3600000 -4 127.0.0.1"
     }
 }
 
-function Stop-Processes
+Function Stop-Processes
 {
+    Write-Host -ForegroundColor Green "[+] Stopping all the processes..."
+
     ForEach ($process In $global:sandboxProcesses)
     {
-        Write-Host -ForegroundColor Yellow "[+] Killing $process..."
+        # Kill the process
+        Write-Verbose -Message "[*] Killing $process..."
         Stop-Process -ProcessName $process.Substring(0, $process.Length - 4) -ErrorAction SilentlyContinue
     }
 }
 
-function Exit-MainProgram
+<# -----------
+     SOCKETS
+   ----------- #>
+
+Function Set-SocketConfiguration
+{
+    # Common ports
+    $global:commonPorts = @(
+        20, 21, 22, 23, 25, 80, 443, 445
+    )
+
+    # Process name
+    $global:socketProcessName = "SocketManager.exe"
+
+    # Powershell location
+    $global:powershellLocation = Join-Path $global:system32 -ChildPath "WindowsPowershell" | Join-Path -ChildPath "v1.0" | Join-Path -ChildPath "powershell.exe"
+}
+
+Function Start-Sockets
+{
+    # Copy powershell.exe as another program
+    $binaryLocation = Join-Path $global:tempFolder $global:socketProcessName
+    Copy-Item $global:powershellLocation $binaryLocation
+
+    # Start the process open all the common ports
+    Write-Host -ForegroundColor Green "[+] Starting sockets"
+    $command = "ForEach (`$port In @($($global:commonPorts -Join ','))) {" +
+        "`$socket = [System.Net.Sockets.TcpListener][int]`$port; Try { `$socket.Start() } Catch {} }" +
+        "While (`$True) { Start-Sleep -Seconds 3600 }"
+    
+    Start-Process $binaryLocation -WindowStyle Hidden -ArgumentList "-NoExit -Command $command"
+    Write-Verbose -Message "[*] Open ports: $global:commonPorts"
+}
+
+Function Stop-Sockets
+{
+    # Stop the sockets
+    Write-Host -ForegroundColor Green "[+] Stopping all the sockets..."
+    Write-Verbose -Message "[*] Killing $global:socketProcessName..."
+    Stop-Process -ProcessName $global:socketProcessName.Substring(0, $global:socketProcessName.Length - 4) -ErrorAction SilentlyContinue
+}
+
+
+<# -----------
+     PROGRAM
+   ----------- #>
+
+Function Exit-MainProgram
 {
     Write-Host -ForegroundColor Blue "[*] Press any key to close..."
     cmd /c "pause" | out-null 
 }
 
-function Start-MainProgram
+Function Start-MainProgram
 {
     Set-Configuration
-    If ($Start) { Start-Processes }
-    ElseIf ($Stop) { Stop-Processes }
+    Set-SocketConfiguration
+    Set-ProcessConfiguration
+
+    If ($Start)
+    {
+        New-TempFolder
+        Start-Sockets
+        Start-Processes
+    }
+    ElseIf ($Stop)
+    {
+        Stop-Sockets
+        Stop-Processes
+    }
+    
     Exit-MainProgram
 }
 Start-MainProgram
