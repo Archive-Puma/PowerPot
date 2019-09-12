@@ -8,6 +8,8 @@
     Start all the jobs. It cannot be used in front of the Stop parameter
 .PARAMETER  Stop
     Stop all the jobs
+.PARAMETER  Yes
+    Accept all the prompts
 .EXAMPLE
     .\powerpot.ps1 -Start
     Start the program
@@ -15,8 +17,8 @@
     .\powerpot.ps1 -Start -Verbose
     Start the program in verbose mode
 .EXAMPLE
-    .\powerpot.ps1 -Stop -Verbose
-    Stop the program in verbose mode
+    .\powerpot.ps1 -Stop -Yes
+    Stop the program without showing prompts
 .LINK
     Github: https://github.com/CosasDePuma/PowerPot
 .NOTES
@@ -29,15 +31,15 @@
 Param(
     [CmdletBinding()]
 
-    [Parameter(Mandatory=$true,
-    ParameterSetName="Start")]
-    [Switch]
-    $Start,
+    [Parameter(Mandatory=$true, ParameterSetName="Start")]
+    [Switch]$Start,
 
-    [Parameter(Mandatory=$true,
-    ParameterSetName="Stop")]
-    [Switch]
-    $Stop
+    [Parameter(Mandatory=$true, ParameterSetName="Stop")]
+    [Switch]$Stop,
+
+    [Parameter(Mandatory=$false, ParameterSetName="Start")]
+    [Parameter(Mandatory=$false, ParameterSetName="Stop")]
+    [Switch]$Yes
 )
 
 Function Set-Configuration
@@ -63,17 +65,17 @@ Function Set-ProcessConfiguration
 {
     # Sandbox processes
     $global:sandboxProcesses = @(
-        'idag',
-        'idaq',
-        'ImmunityDebugger'
-        'ollydbg',
-        'procmon',
-        'VBoxService',
-        'VBoxTray',
-        'vmacthlp',
-        'vmware-tray',
-        'WinDbg',
-        'wireshark'
+        "idag",
+        "idaq",
+        "ImmunityDebugger"
+        "ollydbg",
+        "procmon",
+        "VBoxService",
+        "VBoxTray",
+        "vmacthlp",
+        "vmware-tray",
+        "WinDbg",
+        "wireshark"
     ) | ForEach-Object { "$_.exe" }
 
     # Ping location
@@ -116,7 +118,7 @@ Function Set-SocketConfiguration
 {
     # Common ports
     $global:commonPorts = @(
-        20, 21, 22, 23, 25, 80, 443, 445
+        20, 21, 22, 23, 25, 80, 443
     )
 
     # Process name
@@ -150,7 +152,6 @@ Function Stop-Sockets
     Stop-Process -ProcessName $global:socketProcessName.Substring(0, $global:socketProcessName.Length - 4) -ErrorAction SilentlyContinue
 }
 
-
 <# -----------
      PROGRAM
    ----------- #>
@@ -179,6 +180,9 @@ Function Start-MainProgram
         Stop-Processes
     }
     
-    Exit-MainProgram
+    If (-Not $Yes)
+    {
+        Exit-MainProgram
+    }
 }
 Start-MainProgram
