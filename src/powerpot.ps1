@@ -48,6 +48,13 @@ Function Set-Configuration
     $global:system32 = [Environment]::SystemDirectory
 }
 
+Function Get-LocalPorts
+{
+    # Local ports
+    # << https://sysnetdevops.com/2017/04/24/exploring-the-powershell-alternative-to-netstat/ >>
+    $global:localPorts = (Get-NetTCPConnection | ? {($_.State -eq "Listen") -and ($_.RemoteAddress -eq "0.0.0.0")}).LocalPort | Unique | Sort
+}
+
 Function New-TempFolder
 {
     # Temp folder
@@ -121,6 +128,12 @@ Function Set-SocketConfiguration
         20, 21, 22, 23, 25, 80, 443
     )
 
+    # Filter already open ports
+    ForEach ($port In $global:localPorts)
+    {
+        $global:commonPorts = $global:commonPorts | Where-Object { $_ -ne $port }
+    }
+
     # Process name
     $global:socketProcessName = "SocketManager.exe"
 
@@ -137,8 +150,9 @@ Function Start-Sockets
     # Start the process open all the common ports
     Write-Host -ForegroundColor Green "[+] Starting sockets"
     $command = "ForEach (`$port In @($($global:commonPorts -Join ','))) {" +
-        "`$socket = [System.Net.Sockets.TcpListener][int]`$port; Try { `$socket.Start() } Catch {} }" +
-        "While (`$True) { Start-Sleep -Seconds 3600 }"
+        "`$open = Test-Connection -ComputerName 127.0.0.1 -Port `$port -Count 1 -InformationLevel Quiet -WarningAction SilentlyContinue;" +
+        "If (-Not `$open.tcpTestSucceeded) { `$socket = [System.Net.Sockets.TcpListener][int]`$port;" +
+        "`$socket.Start() } } While (`$True) { Start-Sleep -Seconds 3600 }"
     
     Start-Process $binaryLocation -WindowStyle Hidden -ArgumentList "-NoExit -Command $command"
     Write-Verbose -Message "[*] Open ports: $global:commonPorts"
@@ -164,6 +178,8 @@ Function Exit-MainProgram
 
 Function Start-MainProgram
 {
+    Get-LocalPorts
+
     Set-Configuration
     Set-SocketConfiguration
     Set-ProcessConfiguration
@@ -171,7 +187,10 @@ Function Start-MainProgram
     If ($Start)
     {
         New-TempFolder
-        Start-Sockets
+        If($global:commonPorts.Length -ne 0)
+        {
+            Start-Sockets
+        } Else { Write-Host -ForegroundColor Yellow "[!] No port to open" }
         Start-Processes
     }
     ElseIf ($Stop)
