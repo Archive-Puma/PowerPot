@@ -1,0 +1,1 @@
+Install / Uninstall - Regedit entry or SCHTask autorun command and copy script in AppData
